@@ -255,6 +255,95 @@ class BackGroundThread(MyBasicThread):
         count *= 100;                
         return count,mask; 
 
+def _FindandSetId(control,ID,value,id_name,preset = None):
+    if preset is None:
+        preset = control.get_controls()
+    matches = [x for x in preset if x['id'] == ID]
+    if len(matches) == 0:
+        print("No support %s" % id_name)
+        return False
+    else:
+        control.set_control_value(ID,value)
+        return True
+
+    
+def initialCamera(cap,devID = 0):
+    import pyv4l2
+    # I don't know why first time import will fail 
+    # and second import can success    #  
+    try:
+        import pyv4l2.control 
+    except ImportError:
+        import pyv4l2.control
+    
+    from pyv4l2.control import Control
+    control = Control('/dev/video%d'%devID)
+    preset = control.get_controls()
+    _FindandSetId(control,9963788,1,'Auto White Balance Control',preset)
+    _FindandSetId(control, 10094849, 3, 'Exposure, Auto',preset)
+    _FindandSetId(control,10094851,1,'Exposure, Auto Priority',preset)
+    tick = Tick()
+    while tick.msec() < 1500:
+        cap.read()
+    
+    preset = control.get_controls()
+    _FindandSetId(control,9963788,0,'Auto White Balance Control',preset)
+    _FindandSetId(control, 10094849, 1, 'Exposure, Auto',preset)
+    _FindandSetId(control,10094851,0,'Exposure, Auto Priority',preset)
+    print('initial camera finish')     
+
+def _initial_system():
+    global videocapture,thread_background,thread_camera,thread_opticalflow
+    if videocapture is None:
+        videocapture = cv2.VideoCapture(camera_devid)
+        if not videocapture.isOpened:
+            videocapture.release()
+            videocapture = None
+            return False,'{"ret":false,"reason":"Camera Fail"}'
+    
+    initialCamera(videocapture,camera_devid)
+                            
+    if thread_camera is None:
+        thread_camera = CameraThread(videocapture)
+        thread_camera.start();
+    
+    if thread_opticalflow is None:
+        thread_opticalflow = OpticalFlowThread(thread_camera)
+        thread_opticalflow.start()
+        
+    if thread_background is None:
+        thread_background = BackGroundThread(thread_camera)
+        thread_background.start()        
+    else:
+        if thread_background.run_status == thread_background.STATE_START:
+            #return '{"ret":true}'
+            pass
+        else:
+            print("restart...")            
+            thread_background.restart()
+    
+    return True,'{"ret":true}'
+                    
+def _stop_system():
+    global videocapture,thread_background,thread_camera,thread_opticalflow
+    if thread_opticalflow is not None:
+        thread_opticalflow.Terminal()
+        thread_opticalflow.join()
+        thread_opticalflow = None        
+    if thread_background is not None:
+        thread_background.Terminal()
+        thread_background.join()
+        thread_background = None
+    if thread_camera is not None:
+        thread_camera.Terminal()
+        thread_camera.join()
+        thread_camera = None
+    if videocapture is not None:
+        videocapture.release()
+        videocapture = None
+
+    
+    
 class WSCameraHandler(tornado.websocket.WebSocketHandler):
     def check_origin(self, origin):
         return True
@@ -279,51 +368,12 @@ class WSCameraHandler(tornado.websocket.WebSocketHandler):
             self.on_stop()       
 
     def on_stop(self):
-        global videocapture,thread_background,thread_camera,thread_opticalflow
-        if thread_opticalflow is not None:
-            thread_opticalflow.Terminal()
-            thread_opticalflow.join()
-            thread_opticalflow = None        
-        if thread_background is not None:
-            thread_background.Terminal()
-            thread_background.join()
-            thread_background = None
-        if thread_camera is not None:
-            thread_camera.Terminal()
-            thread_camera.join()
-            thread_camera = None
-        if videocapture is not None:
-            videocapture.release()
-            videocapture = None
+        _stop_system()
         self.write_message('{"ret":true}')
                                 
     def on_start(self):
-        global videocapture,thread_background,thread_camera,thread_opticalflow
-        if videocapture is None:
-            videocapture = cv2.VideoCapture(camera_devid)
-            if not videocapture.isOpened:
-                self.write_message('{"ret":false,"reason":"Camera Fail"}')
-                videocapture.release()
-                videocapture = None
-                                
-        if thread_camera is None:
-            thread_camera = CameraThread(videocapture)
-            thread_camera.start();
-        
-        if thread_opticalflow is None:
-            thread_opticalflow = OpticalFlowThread(thread_camera)
-            thread_opticalflow.start()
-            
-        if thread_background is None:
-            thread_background = BackGroundThread(thread_camera)
-            thread_background.start()        
-        else:
-            if thread_background.run_status == thread_background.STATE_START:
-                self.write_message('{"ret":true}')
-            else:
-                print("restart...")            
-                thread_background.restart()
-        self.write_message('{"ret":true}')
+        msg = _initial_system()
+        self.write_message(msg)
 
         
     def on_status(self):
@@ -433,13 +483,8 @@ if __name__ == '__main__':
     video_height = videoSize[1]
     
     if args.review or args.mask or args.output or args.autostart:
-        thread_camera = CameraThread(videocapture)
-        thread_camera.start();
+        _initial_system()
         number = thread_camera.frameNum()
-        thread_background = BackGroundThread(thread_camera)
-        thread_background.start()
-        thread_opticalflow = OpticalFlowThread(thread_camera)
-        thread_opticalflow.start()
         subNum = thread_background.frameNum()
         prestate = thread_background.run_status;
     else:
@@ -499,23 +544,8 @@ if __name__ == '__main__':
             loop = False
             
     
-    tornado.ioloop.IOLoop.instance().stop()
-    
-    if thread_background is not None: 
-        thread_background.Terminal();
-        thread_background.join()
-        print('sub thread terminal')
-    
-    if thread_opticalflow is not None:
-        thread_opticalflow.Terminal()
-        thread_opticalflow.join()
-        print('Optical Flow thread terminal')
-    
-    if thread_camera is not None:
-        thread_camera.Terminal()
-        thread_camera.join()
-        print('thread_camera thread terminal')
-    
+    tornado.ioloop.IOLoop.instance().stop()    
     wsThread.join()
     print('webstocket thread terminal')    
+    _stop_system()   
     
