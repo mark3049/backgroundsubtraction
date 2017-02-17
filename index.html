@@ -30,8 +30,8 @@
           $("#msg").val(msg);
         }
 
-        ws = new WebSocket("ws://10.109.35.82:8888/ws");
-        //ws = new WebSocket("ws://127.0.0.1:8888/ws");
+        //ws = new WebSocket("ws://10.109.35.82:8888/ws");
+        ws = new WebSocket("ws://127.0.0.1:8888/ws");
         //ws.binaryType = "arraybuffer"        
         ws.onmessage = function(event) {
         	if (event.data instanceof ArrayBuffer){
