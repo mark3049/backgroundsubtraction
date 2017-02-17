@@ -21,10 +21,10 @@ from StringIO import StringIO
 #import numpy as np
  
 
-history_size = 30 * 10
+history_size = 30 * 5
 background_scale = 2
 opticalflow_scale = 4
-stability_max = 40.0
+stability_max = 80.0
 stability_min = 0.3
 video_width = 640
 video_height = 480
@@ -164,7 +164,7 @@ class BackGroundThread(MyBasicThread):
         self.setName('BackGround Subtractor')
         self._lock = threading.Lock()
         self._video_source = source;
-        self.bgs = cv2.BackgroundSubtractorMOG2(history=history_size,varThreshold=9)
+        self.bgs = cv2.BackgroundSubtractorMOG2(history=history_size,varThreshold=16)
         self._scale_size = (video_width/background_scale,video_height/background_scale)
         self.kernel3x3 = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(3,3))
         
@@ -214,7 +214,7 @@ class BackGroundThread(MyBasicThread):
         
         if self.run_status == BackGroundThread.STATE_READY:
             if self.stability > stability_min and self.stability < stability_max:
-                learning = 1.0/(history_size*100)      
+                learning = 1.0/(history_size*200)      
         
         self.stability, mask = self._applyBG(image,learning)
         
