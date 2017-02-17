@@ -135,6 +135,7 @@ class WSCameraHandler(tornado.websocket.WebSocketHandler):
             return
         image = thread_camera.get()
         mask = thread_background.get()
+        timestamp = thread_background.timestamp()
         fgmask = cv2.resize(mask,(image.shape[1],image.shape[0]))
         result = cv2.bitwise_and(image,image,mask=fgmask)
         b_channel, g_channel, r_channel = cv2.split(result)                
@@ -149,7 +150,7 @@ class WSCameraHandler(tornado.websocket.WebSocketHandler):
         if thread_background.stability < config.get().stability_min:
             v = 0
         
-        msg = '{"ret":true,"activity":%d,"img":"data:image/png;base64,%s"}' %(v,img_str)
+        msg = '{"ret":true,"activity":%d,"timstamp":%d,"img":"data:image/png;base64,%s"}' %(v,timestamp,img_str)
         self.write_message(msg)
     
     def cvimageToBase64JpegString(self,im):
@@ -166,8 +167,10 @@ class WSCameraHandler(tornado.websocket.WebSocketHandler):
             self.write_message(msg)
             return
         im = thread_camera.get()
+        timestamp = thread_camera.timestamp()
+        stability = int(round(thread_background.stability))
         img_str = self.cvimageToBase64JpegString(im)
-        msg = '{"ret":true,"stability":%d,"img":"data:image/jpeg;base64,%s"}' % (int(round(thread_background.stability)),img_str) 
+        msg = '{"ret":true,"stability":%d,"img":"data:image/jpeg;base64,%s"}' % (stability,timestamp,img_str) 
         self.write_message(msg)
     def on_close(self):
         pass
@@ -249,14 +252,13 @@ if __name__ == '__main__':
 
                 cv2.imshow('Result',img_RGBA)
             if thread_camera is not None:
-                print('\r','%.2f' % (1000.0/thread_camera.msec()), '%.2f'%(1000/thread_background.msec()),end=' ')            
+                cfps = int(round((1000.0/thread_camera.msec())))
+                bgfps = int(round((1000/thread_background.msec())))                           
+                print('\r','%d fps' % cfps,'%d fps' % bgfps,end=' ')            
                 v = thread_opticalflow.activity
-                print('%.2f' % (v),end=' ')            
-                sys.stdout.flush()
-            if prestate != thread_background.run_status:
-                prestate = thread_background.run_status
-                print('\n state change',prestate)
-            
+                print('%d msec' % int(round(thread_opticalflow.msec())),end=' ')
+                print('%.1f' % (v),end=' ')            
+                sys.stdout.flush()            
         except KeyboardInterrupt:
             loop = False
             

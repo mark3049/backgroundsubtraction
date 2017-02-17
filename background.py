@@ -36,19 +36,21 @@ class BackGroundThread(MyBasicThread):
         self.stability=0
         self._lock = threading.Lock()
         self.ready = threading.Event()
+        self._timestamp = -1
+        self._tick.reset()
     
       
     def run(self):
         tick = Tick()
         
-        log.info('Begin BackgroundSubtractorMOG2 first step - %d frame' % self.history_size/2)        
+        log.info('Begin BackgroundSubtractorMOG2 first step - %d frame' % (self.history_size/2))        
         target_value = self.frameNum() + self.history_size/2;
         while self.frameNum() < target_value:
             self.once()
             if self.is_terminal():
                 return
         self.run_status = self.STATE_READY
-        log.info('Statue change to [%s]' % self.run_status)
+        log.info('statue change to [%s]' % self.run_status)
         while self.is_terminal() is False:
             self.once()
             if self.run_status is self.STATE_EXCEPTION:
@@ -88,10 +90,12 @@ class BackGroundThread(MyBasicThread):
         
         if self.stability > self.args.stability_max:
             self.run_status = BackGroundThread.STATE_EXCEPTION
+            log.info('status change to [%s]'%self.run_status)
         
         if self.run_status == BackGroundThread.STATE_READY:
             self._lock.acquire()
             self.fgmask = mask.copy() #cv2.resize(mask,(video_width,video_height))
+            self._timestamp = cv2.getTickCount()
             self._lock.release()
             self.ready.set()
             
@@ -104,6 +108,8 @@ class BackGroundThread(MyBasicThread):
         mask = self.fgmask.copy()
         self._lock.release()
         return mask
+    def timestamp(self):
+        return self._timestamp
         
 
     def _applyBG(self,image,learning = -1):

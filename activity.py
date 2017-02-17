@@ -4,6 +4,11 @@ import cv2
 from BaseThread import MyBasicThread
 from cvTick import Tick
 import config
+from cvTick import period_tick
+
+import logging
+log = logging.getLogger(__name__)
+
 class OpticalFlowThread(MyBasicThread):
     def __init__(self,cap):
         MyBasicThread.__init__(self)
@@ -16,13 +21,15 @@ class OpticalFlowThread(MyBasicThread):
         self.activity = -1
         scale = self.args.opticalflow_scale
         self._resize = (self.args.video_width/scale,self.args.video_height/scale)
-        print(self._resize)
+        log.info('video size %s',self._resize)
+        self._tick = period_tick()
     
     def once(self):
         msec = self._tick_250ms.msec()
         if msec < 250:
             time.sleep(float(250-msec)/1000)
         self._tick_250ms.reset()
+        self._tick.start()
         im = self.cap.get()
         if im is None:
             return
@@ -41,5 +48,12 @@ class OpticalFlowThread(MyBasicThread):
             self.activity = v
         else:
             self.activity = (self.activity*5.0+v)/6.0
-        self._incNum()        
+        self._tick.stop()
+        self._incNum()
+    def msec(self):
+        num = self.frameNum()
+        if num == 0:
+            return -1
+        else:
+            return self._tick.msec()/num        
         

@@ -78,14 +78,14 @@ class CameraThread(MyBasicThread):
         self._image_lock = threading.Lock()
         self.ready_event = threading.Event()
         initialCamera(videocapture,self._args)
-        self.timestamp = cv2.getCPUTickCount()
+        self._timestamp = -1
         self._tick.reset() 
       
     def once(self):
         _,im = self.cap.read()
         self._image_lock.acquire()
         self._previewImage = im.copy()
-        self.timestamp = cv2.getTickCount()
+        self._timestamp = cv2.getTickCount()
         self._image_lock.release()        
         self.ready_event.set()
         self._incNum()
@@ -109,4 +109,4 @@ class CameraThread(MyBasicThread):
         return image
     
     def timestamp(self):
-        return self.timestamp
+        return self._timestamp
