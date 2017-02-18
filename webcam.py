@@ -70,7 +70,8 @@ class CameraThread(MyBasicThread):
         _FindandSetId(control, 10094849, 3, 'Exposure, Auto',preset)
         _FindandSetId(control,10094851,1,'Exposure, Auto Priority',preset)
         setCameraVideoSize(self.cap, args.video_width, args.video_height)
-        self.cap.set(5,args.fps)
+        if args.fps != 0:
+            self.cap.set(5,args.fps)
         tick = Tick()
         while tick.msec() < 1500:
             self.cap.read()
