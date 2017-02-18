@@ -35,37 +35,7 @@ def setCameraVideoSize(videocapture,width,height):
     videocapture.set(3,width)
     videocapture.set(4,height)
     
-def initialCamera(cap,args):
-    log.debug('initialCamera begin')
-    import pyv4l2
-    # I don't know why first time import will fail 
-    # and second import can success    #  
-    try:
-        import pyv4l2.control 
-    except ImportError:
-        import pyv4l2.control
-    
-    from pyv4l2.control import Control    
 
-    control = Control('/dev/video%d'% args.devid)
-    preset = control.get_controls()
-    _FindandSetId(control,9963788,1,'Auto White Balance Control',preset)
-    _FindandSetId(control, 10094849, 3, 'Exposure, Auto',preset)
-    _FindandSetId(control,10094851,1,'Exposure, Auto Priority',preset)
-    setCameraVideoSize(cap, args.video_width, args.video_height)
-    cap.set(5,args.fps)
-    tick = Tick()
-    while tick.msec() < 1500:
-        cap.read()
-    
-    args.video_width,args.video_height = getCameraVideoSize(cap)
-    log.info('initialCamera to video size (%d,%d)' %(args.video_width,args.video_height))
-    
-    preset = control.get_controls()
-    _FindandSetId(control,9963788,0,'Auto White Balance Control',preset)
-    _FindandSetId(control, 10094849, 1, 'Exposure, Auto',preset)
-    _FindandSetId(control,10094851,0,'Exposure, Auto Priority',preset)
-    log.debug('initial camera finish')
     
 class CameraThread(MyBasicThread):
     def __init__(self,videocapture):
@@ -77,10 +47,43 @@ class CameraThread(MyBasicThread):
         self._frameNum = 0
         self._image_lock = threading.Lock()
         self.ready_event = threading.Event()
-        initialCamera(videocapture,self._args)
+        self.initialCamera()
         self._timestamp = -1
-        self._tick.reset() 
-      
+        self._tick.reset()
+        
+    def initialCamera(self):
+        log.debug('initialCamera begin')
+        args = self._args
+        import pyv4l2
+        # I don't know why first time import will fail 
+        # and second import can success    #  
+        try:
+            import pyv4l2.control 
+        except ImportError:
+            import pyv4l2.control
+        
+        from pyv4l2.control import Control    
+    
+        control = Control('/dev/video%d'% args.devid)
+        preset = control.get_controls()
+        _FindandSetId(control,9963788,1,'Auto White Balance Control',preset)
+        _FindandSetId(control, 10094849, 3, 'Exposure, Auto',preset)
+        _FindandSetId(control,10094851,1,'Exposure, Auto Priority',preset)
+        setCameraVideoSize(self.cap, args.video_width, args.video_height)
+        self.cap.set(5,args.fps)
+        tick = Tick()
+        while tick.msec() < 1500:
+            self.cap.read()
+        
+        args.video_width,args.video_height = getCameraVideoSize(self.cap)
+        log.info('initialCamera to video size (%d,%d)' %(args.video_width,args.video_height))
+        
+        preset = control.get_controls()
+        _FindandSetId(control,9963788,0,'Auto White Balance Control',preset)
+        _FindandSetId(control, 10094849, 1, 'Exposure, Auto',preset)
+        _FindandSetId(control,10094851,0,'Exposure, Auto Priority',preset)
+        self.frameNumReset()
+        log.debug('initial camera finish')      
     def once(self):
         _,im = self.cap.read()
         self._image_lock.acquire()

@@ -223,12 +223,18 @@ if __name__ == '__main__':
             key = cv2.waitKey(1) & 0xff
             if key == 27: # ESC
                 loop = False
-            if thread_background is not None and (key == 83 or key == 115) : # 's' or 'S'                    
-                thread_background.restart()
 
             if thread_background == None:
+                if key == 66 or key == 98 :
+                    _initial_system()
                 time.sleep(0.1)
                 continue
+            else:
+                if key == 83 or key == 115 : # 's' or 'S'                    
+                    thread_background.restart()
+                if key == 65 or key == 97 : # A or a
+                    _stop_system()
+                    continue
                    
             if args.review:
                 t = thread_camera.frameNum()
